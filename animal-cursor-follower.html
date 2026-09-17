@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pick an Animal to Follow Your Cursor</title>
+<style>
+  :root{
+    --bg: #eef1f8;
+    --bg2: #ffffff;
+    --card: #ffffff;
+    --card-border: #e2e6f0;
+    --text: #1c2333;
+    --text-dim: #6b7280;
+    --accent: #6c5ce7;
+    --accent-soft: #efeaff;
+    --shadow: rgba(30,34,60,0.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg: #0b0f19;
+      --bg2: #10162a;
+      --card: #141b30;
+      --card-border: #232c48;
+      --text: #f2f4fb;
+      --text-dim: #a2a9c3;
+      --accent: #8b7bff;
+      --accent-soft: #241f45;
+      --shadow: rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #0b0f19;
+    --bg2: #10162a;
+    --card: #141b30;
+    --card-border: #232c48;
+    --text: #f2f4fb;
+    --text-dim: #a2a9c3;
+    --accent: #8b7bff;
+    --accent-soft: #241f45;
+    --shadow: rgba(0,0,0,0.35);
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{
+    margin:0; padding:0; width:100%; height:100%;
+    overflow:hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  /* ---------- Selection screen ---------- */
+  #selectScreen{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap: 28px;
+    padding: 24px;
+    background: radial-gradient(circle at 50% 20%, var(--bg2), var(--bg));
+  }
+  #selectScreen h1{
+    font-size: clamp(22px, 4vw, 32px);
+    margin: 0;
+    text-align: center;
+  }
+  #selectScreen p.sub{
+    margin: -18px 0 0 0;
+    color: var(--text-dim);
+    font-size: 15px;
+    text-align:center;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    max-width: 760px;
+    width: 100%;
+  }
+  .animal-card{
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 18px;
+    padding: 18px 12px 14px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    cursor:pointer;
+    box-shadow: 0 6px 18px var(--shadow);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .animal-card:hover{
+    transform: translateY(-4px) scale(1.03);
+    border-color: var(--accent);
+    box-shadow: 0 10px 24px var(--shadow);
+  }
+  .animal-card:active{ transform: translateY(-1px) scale(0.99); }
+  .animal-card svg{ width: 84px; height: 84px; }
+  .animal-card span{
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* ---------- Tracker screen ---------- */
+  #trackScreen{
+    position:fixed; inset:0;
+    display:none;
+    background: var(--bg);
+    cursor: none;
+  }
+  #trackScreen.active{ display:block; }
+
+  #backBtn{
+    position:fixed;
+    top: 16px; left: 16px;
+    z-index: 10;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--card-border);
+    border-radius: 999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 14px var(--shadow);
+  }
+  #backBtn:hover{ border-color: var(--accent); }
+
+  #hint{
+    position:fixed;
+    bottom: 18px; left: 50%;
+    transform: translateX(-50%);
+    color: var(--text-dim);
+    font-size: 13px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px var(--shadow);
+    pointer-events: none;
+  }
+
+  svg#screen{
+    position:absolute; top:0; left:0;
+    width:100vw; height:100vh;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+
+  <!-- SELECTION PAGE -->
+  <div id="selectScreen">
+    <h1>Pick a friend to follow your cursor 🐾</h1>
+    <p class="sub">Move your mouse (or finger) around once you choose.</p>
+    <div class="grid" id="animalGrid"></div>
+  </div>
+
+  <!-- TRACKER PAGE -->
+  <div id="trackScreen">
+    <button id="backBtn">← Choose another animal</button>
+    <div id="hint">Move your cursor around the screen</div>
+    <svg id="screen" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------
+   Animal definitions.
+   Each animal owns:
+     - defs(id): returns <defs> markup (gradients) scoped with
+       a unique id prefix so multiple instances never collide.
+     - build(g, id): fills group g with the animal artwork,
+       organic bodies via bezier paths + soft shading gradients
+       instead of flat primitive shapes.
+--------------------------------------------------------- */
+const ANIMALS = {
+
+  dog: {
+    label: "Golden Retriever",
+    defs(id){
+      return `
+        <radialGradient id="${id}-body" cx="38%" cy="30%" r="75%">
+          <stop offset="0%" stop-color="#ffe3b0"/>
+          <stop offset="55%" stop-color="#eeb46a"/>
+          <stop offset="100%" stop-color="#c98a45"/>
+        </radialGradient>
+        <radialGradient id="${id}-ear" cx="35%" cy="20%" r="80%">
+          <stop offset="0%" stop-color="#d99b58"/>
+          <stop offset="100%" stop-color="#a06a34"/>
+        </radialGradient>
+        <linearGradient id="${id}-snout" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fff3dd"/>
+          <stop offset="100%" stop-color="#f0d9ad"/>
+        </linearGradient>
+      `;
+    },
+    build(g, id){
+      g.innerHTML = `
+        <g class="tail" style="transform-origin: -36px 4px;">
+          <path d="M-36 4 C-58 -6 -62 -22 -50 -30 C-52 -18 -44 -8 -30 -4 Z" fill="url(#${id}-ear)"/>
+        </g>
+        <path d="M-26 30 C-40 26 -42 8 -30 -2 C-16 -10 6 -8 18 4 C10 14 -6 24 -26 30 Z" fill="url(#${id}-body)"/>
+        <path d="M-30 -2 C-34 -22 -18 -34 4 -32 C24 -30 36 -16 36 2 C36 20 22 32 2 32 C-14 32 -26 16 -30 -2 Z" fill="url(#${id}-body)"/>
+        <path d="M4 30 C-4 34 -14 30 -16 20 C-6 26 6 26 14 20 C14 26 10 29 4 30 Z" fill="#fff6e4" opacity="0.85"/>
+        <ellipse cx="30" cy="-14" rx="19" ry="17" fill="url(#${id}-body)"/>
+        <path d="M18 -26 C6 -40 4 -54 14 -52 C24 -44 28 -32 26 -22 Z" fill="url(#${id}-ear)"/>
+        <path d="M44 -22 C54 -36 58 -50 48 -46 C40 -38 36 -28 36 -18 Z" fill="url(#${id}-ear)"/>
+        <path d="M36 -8 C46 -8 52 -2 50 6 C48 12 40 14 34 10 C30 6 30 -4 36 -8 Z" fill="url(#${id}-snout)"/>
+        <ellipse cx="49" cy="1" rx="4.2" ry="3.2" fill="#3a2a20"/>
+        <path d="M45 5 Q42 9 38 6" stroke="#3a2a20" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+        <ellipse cx="24" cy="-16" rx="2.6" ry="3.2" fill="#3a2a20"/>
+        <ellipse cx="38" cy="-16" rx="2.6" ry="3.2" fill="#3a2a20"/>
+        <circle cx="25" cy="-17.2" r="0.8" fill="#fff"/>
+        <circle cx="39" cy="-17.2" r="0.8" fill="#fff"/>
+        <path d="M19 -22 Q24 -25 29 -22" stroke="#b98a4c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        <path d="M33 -22 Q38 -25 43 -22" stroke="#b98a4c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        <rect x="-4" y="24" width="8" height="16" rx="4" fill="url(#${id}-body)"/>
+        <rect x="14" y="24" width="8" height="16" rx="4" fill="url(#${id}-body)"/>
+        <ellipse cx="0" cy="40" rx="5" ry="3" fill="#fff6e4"/>
+        <ellipse cx="18" cy="40" rx="5" ry="3" fill="#fff6e4"/>
+      `;
+    }
+  },
+
+  cat: {
+    label: "Tabby Cat",
+    defs(id){
+      return `
+        <radialGradient id="${id}-body" cx="35%" cy="25%" r="80%">
+          <stop offset="0%" stop-color="#e7c79a"/>
+          <stop offset="55%" stop-color="#c8985f"/>
+          <stop offset="100%" stop-color="#9d6f3d"/>
+        </radialGradient>
+        <linearGradient id="${id}-belly" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fbeed8"/>
+          <stop offset="100%" stop-color="#f0dcb8"/>
+        </linearGradient>
+      `;
+    },
+    build(g, id){
+      g.innerHTML = `
+        <g class="tail" style="transform-origin: -30px 6px;">
+          <path d="M-30 6 C-54 -2 -60 -22 -46 -34 C-50 -20 -40 -8 -22 -2 Z" fill="url(#${id}-body)"/>
+          <path d="M-46 -30 C-52 -34 -52 -40 -44 -38 Z" fill="#4d3620"/>
+        </g>
+        <path d="M-28 28 C-40 22 -40 4 -26 -4 C-10 -12 12 -8 22 4 C14 16 -4 26 -28 28 Z" fill="url(#${id}-body)"/>
+        <path d="M-2 -6 C-6 -22 8 -34 26 -32 C42 -30 50 -16 48 0 C46 16 32 26 14 26 C-2 26 -2 10 -2 -6 Z" fill="url(#${id}-body)"/>
+        <path d="M2 24 C-4 28 -14 26 -16 16 C-8 22 4 22 12 16 C12 21 8 23 2 24 Z" fill="url(#${id}-belly)"/>
+        <g stroke="#7a5530" stroke-width="2" stroke-linecap="round" opacity="0.55">
+          <path d="M-4 -12 L4 -16"/>
+          <path d="M-2 -4 L8 -8"/>
+          <path d="M0 4 L10 1"/>
+        </g>
+        <circle cx="34" cy="-10" r="18" fill="url(#${id}-body)"/>
+        <path d="M20 -22 L12 -38 L30 -28 Z" fill="url(#${id}-body)"/>
+        <path d="M48 -22 L58 -38 L38 -28 Z" fill="url(#${id}-body)"/>
+        <path d="M21 -22 L17 -31 L27 -25 Z" fill="#e3a7bc"/>
+        <path d="M47 -22 L52 -31 L42 -25 Z" fill="#e3a7bc"/>
+        <ellipse cx="27" cy="-10" rx="3" ry="4.2" fill="#8a6a2a"/>
+        <ellipse cx="41" cy="-11" rx="3" ry="4.2" fill="#8a6a2a"/>
+        <ellipse cx="27" cy="-10" rx="1.1" ry="3" fill="#1c1c1c"/>
+        <ellipse cx="41" cy="-11" rx="1.1" ry="3" fill="#1c1c1c"/>
+        <path d="M34 -2 L31 2 L37 2 Z" fill="#c97a91"/>
+        <path d="M34 2 Q34 5 31 6 M34 2 Q34 5 37 6" stroke="#5c4326" stroke-width="1.2" fill="none"/>
+        <g stroke="#5c4326" stroke-width="1" opacity="0.7">
+          <path d="M18 -8 L4 -10"/>
+          <path d="M18 -4 L3 -2"/>
+          <path d="M50 -8 L64 -10"/>
+          <path d="M50 -4 L65 -2"/>
+        </g>
+        <rect x="-2" y="20" width="7" height="14" rx="3.5" fill="url(#${id}-body)"/>
+        <rect x="14" y="20" width="7" height="14" rx="3.5" fill="url(#${id}-body)"/>
+      `;
+    }
+  },
+
+  fox: {
+    label: "Red Fox",
+    defs(id){
+      return `
+        <radialGradient id="${id}-body" cx="35%" cy="25%" r="80%">
+          <stop offset="0%" stop-color="#f4894a"/>
+          <stop offset="55%" stop-color="#e0632a"/>
+          <stop offset="100%" stop-color="#b8471c"/>
+        </radialGradient>
+        <linearGradient id="${id}-white" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fffaf3"/>
+          <stop offset="100%" stop-color="#f2e4d3"/>
+        </linearGradient>
+      `;
+    },
+    build(g, id){
+      g.innerHTML = `
+        <g class="tail" style="transform-origin: -26px 0px;">
+          <path d="M-26 0 C-52 -8 -64 -28 -54 -44 C-46 -30 -34 -20 -18 -14 Z" fill="url(#${id}-body)"/>
+          <path d="M-58 -38 C-64 -30 -60 -20 -50 -20 C-52 -28 -54 -34 -58 -38 Z" fill="url(#${id}-white)"/>
+        </g>
+        <path d="M-24 26 C-36 20 -36 2 -22 -6 C-6 -14 16 -10 26 2 C18 14 0 24 -24 26 Z" fill="url(#${id}-body)"/>
+        <path d="M0 -4 C-4 -20 10 -32 28 -30 C44 -28 52 -14 50 2 C48 18 34 28 16 28 C0 28 0 12 0 -4 Z" fill="url(#${id}-body)"/>
+        <path d="M4 26 C-2 29 -12 27 -14 18 C-6 23 6 23 13 18 C13 22 9 25 4 26 Z" fill="url(#${id}-white)"/>
+        <path d="M24 -30 C14 -20 12 -6 20 4 C28 12 44 14 54 6 C62 -2 62 -18 52 -26 C44 -32 32 -34 24 -30 Z" fill="url(#${id}-body)"/>
+        <path d="M42 -4 C50 -2 58 4 56 10 C52 14 42 12 38 6 C36 2 38 -4 42 -4 Z" fill="url(#${id}-white)"/>
+        <ellipse cx="55" cy="6" rx="3.4" ry="2.6" fill="#2a1c12"/>
+        <path d="M18 -30 L8 -52 L30 -38 Z" fill="url(#${id}-body)"/>
+        <path d="M18 -30 L12 -44 L26 -35 Z" fill="#2a1c12"/>
+        <path d="M40 -32 L48 -54 L28 -40 Z" fill="url(#${id}-body)"/>
+        <path d="M40 -32 L44 -46 L32 -37 Z" fill="#2a1c12"/>
+        <path d="M25 -12 Q30 -16 35 -12 Q30 -9 25 -12 Z" fill="#2a1c12"/>
+        <path d="M38 -12 Q43 -16 48 -12 Q43 -9 38 -12 Z" fill="#2a1c12"/>
+        <rect x="-2" y="20" width="7" height="14" rx="3.5" fill="url(#${id}-body)"/>
+        <rect x="-2" y="30" width="7" height="6" rx="2" fill="#2a1c12"/>
+        <rect x="14" y="20" width="7" height="14" rx="3.5" fill="url(#${id}-body)"/>
+        <rect x="14" y="30" width="7" height="6" rx="2" fill="#2a1c12"/>
+      `;
+    }
+  },
+
+  bunny: {
+    label: "Cottontail Bunny",
+    defs(id){
+      return `
+        <radialGradient id="${id}-body" cx="35%" cy="25%" r="80%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="60%" stop-color="#eee5db"/>
+          <stop offset="100%" stop-color="#d9cbbc"/>
+        </radialGradient>
+        <linearGradient id="${id}-inner-ear" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#f6b9cb"/>
+          <stop offset="100%" stop-color="#e58fa9"/>
+        </linearGradient>
+      `;
+    },
+    build(g, id){
+      g.innerHTML = `
+        <circle cx="-34" cy="12" r="9" fill="url(#${id}-body)"/>
+        <path d="M-24 26 C-36 20 -36 2 -22 -6 C-6 -14 16 -10 26 2 C18 14 0 24 -24 26 Z" fill="url(#${id}-body)"/>
+        <path d="M0 -4 C-4 -20 10 -32 28 -30 C44 -28 52 -14 50 2 C48 18 34 28 16 28 C0 28 0 12 0 -4 Z" fill="url(#${id}-body)"/>
+        <path d="M16 -26 C8 -56 16 -78 26 -68 C32 -52 30 -34 26 -22 Z" fill="url(#${id}-body)"/>
+        <path d="M19 -30 C15 -52 20 -68 26 -60 C29 -48 27 -36 24 -27 Z" fill="url(#${id}-inner-ear)"/>
+        <path d="M38 -26 C46 -56 38 -78 28 -68 C22 -52 24 -34 28 -22 Z" fill="url(#${id}-body)"/>
+        <path d="M35 -30 C39 -52 34 -68 28 -60 C25 -48 27 -36 30 -27 Z" fill="url(#${id}-inner-ear)"/>
+        <ellipse cx="20" cy="-8" rx="2.6" ry="3.4" fill="#6b3d2a"/>
+        <ellipse cx="34" cy="-10" rx="2.6" ry="3.4" fill="#6b3d2a"/>
+        <circle cx="21" cy="-9.2" r="0.8" fill="#fff"/>
+        <circle cx="35" cy="-11.2" r="0.8" fill="#fff"/>
+        <path d="M27 -2 L24 2 L30 2 Z" fill="url(#${id}-inner-ear)"/>
+        <path d="M27 2 Q27 5 24 6 M27 2 Q27 5 30 6" stroke="#8a5a3c" stroke-width="1.1" fill="none"/>
+        <g stroke="#c9b9a8" stroke-width="1" opacity="0.8">
+          <path d="M14 -4 L2 -6"/>
+          <path d="M14 0 L1 2"/>
+          <path d="M42 -4 L54 -6"/>
+          <path d="M42 0 L55 2"/>
+        </g>
+        <ellipse cx="0" cy="34" rx="7" ry="4" fill="url(#${id}-body)"/>
+        <ellipse cx="18" cy="34" rx="7" ry="4" fill="url(#${id}-body)"/>
+      `;
+    }
+  },
+
+  panda: {
+    label: "Giant Panda",
+    defs(id){
+      return `
+        <radialGradient id="${id}-white" cx="35%" cy="25%" r="80%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="100%" stop-color="#e6e6e6"/>
+        </radialGradient>
+        <radialGradient id="${id}-black" cx="35%" cy="25%" r="80%">
+          <stop offset="0%" stop-color="#3d3d3d"/>
+          <stop offset="100%" stop-color="#161616"/>
+        </radialGradient>
+      `;
+    },
+    build(g, id){
+      g.innerHTML = `
+        <circle cx="-32" cy="10" r="9" fill="url(#${id}-black)"/>
+        <path d="M-24 26 C-36 20 -36 2 -22 -6 C-6 -14 16 -10 26 2 C18 14 0 24 -24 26 Z" fill="url(#${id}-white)"/>
+        <path d="M0 -4 C-4 -20 10 -32 28 -30 C44 -28 52 -14 50 2 C48 18 34 28 16 28 C0 28 0 12 0 -4 Z" fill="url(#${id}-white)"/>
+        <circle cx="14" cy="-26" r="9" fill="url(#${id}-black)"/>
+        <circle cx="42" cy="-26" r="9" fill="url(#${id}-black)"/>
+        <ellipse cx="20" cy="-10" rx="7.5" ry="9.5" fill="url(#${id}-black)" transform="rotate(-12 20 -10)"/>
+        <ellipse cx="38" cy="-12" rx="7.5" ry="9.5" fill="url(#${id}-black)" transform="rotate(12 38 -12)"/>
+        <circle cx="21" cy="-9" r="2.6" fill="#fff"/>
+        <circle cx="37" cy="-11" r="2.6" fill="#fff"/>
+        <circle cx="21" cy="-9" r="1.2" fill="#111"/>
+        <circle cx="37" cy="-11" r="1.2" fill="#111"/>
+        <ellipse cx="29" cy="0" rx="4" ry="3" fill="url(#${id}-black)"/>
+        <path d="M29 3 Q29 7 25 8 M29 3 Q29 7 33 8" stroke="#333" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <rect x="-3" y="20" width="9" height="15" rx="4" fill="url(#${id}-black)"/>
+        <rect x="15" y="20" width="9" height="15" rx="4" fill="url(#${id}-black)"/>
+      `;
+    }
+  }
+};
+
+const grid = document.getElementById("animalGrid");
+Object.entries(ANIMALS).forEach(([key, def])=>{
+  const card = document.createElement("div");
+  card.className = "animal-card";
+  const uid = `thumb-${key}`;
+  card.innerHTML = `<svg viewBox="-60 -60 130 120"><defs>${def.defs(uid)}</defs><g></g></svg><span>${def.label}</span>`;
+  def.build(card.querySelector("g"), uid);
+  card.addEventListener("click", ()=> startTracker(key));
+  grid.appendChild(card);
+});
+
+/* ---------------------------------------------------------
+   Remember last chosen animal (per-viewer convenience only)
+--------------------------------------------------------- */
+try{ localStorage.getItem("favoriteAnimal"); }catch(e){ /* storage unavailable, ignore */ }
+
+/* ---------------------------------------------------------
+   Tracker screen logic
+--------------------------------------------------------- */
+const selectScreen = document.getElementById("selectScreen");
+const trackScreen = document.getElementById("trackScreen");
+const backBtn = document.getElementById("backBtn");
+const screen = document.getElementById("screen");
+const xmlns = "http://www.w3.org/2000/svg";
+
+let width = window.innerWidth;
+let height = window.innerHeight;
+
+const pointer = { x: width/2, y: height/2 };
+const pos = { x: width/2, y: height/2 };
+let facing = 1; // 1 = right, -1 = left
+let animalGroup = null;
+let rafId = null;
+
+function buildAnimalOnScreen(key){
+  screen.innerHTML = "";
+  const uid = "live-" + key;
+  const defsEl = document.createElementNS(xmlns, "defs");
+  defsEl.innerHTML = ANIMALS[key].defs(uid);
+  screen.appendChild(defsEl);
+
+  const g = document.createElementNS(xmlns, "g");
+  g.setAttribute("id", "animal");
+  const inner = document.createElementNS(xmlns, "g");
+  inner.setAttribute("class", "inner");
+  ANIMALS[key].build(inner, uid);
+  g.appendChild(inner);
+  screen.appendChild(g);
+  animalGroup = g;
+}
+
+function startTracker(key){
+  try{ localStorage.setItem("favoriteAnimal", key); }catch(e){}
+  buildAnimalOnScreen(key);
+  selectScreen.style.display = "none";
+  trackScreen.classList.add("active");
+  resize();
+  if(!rafId) animate();
+}
+
+function goBack(){
+  trackScreen.classList.remove("active");
+  selectScreen.style.display = "flex";
+}
+backBtn.addEventListener("click", goBack);
+
+function resize(){
+  width = window.innerWidth;
+  height = window.innerHeight;
+  screen.setAttribute("viewBox", `0 0 ${width} ${height}`);
+}
+window.addEventListener("resize", resize, false);
+
+function updatePointer(x, y){
+  pointer.x = x;
+  pointer.y = y;
+}
+window.addEventListener("pointermove", (e)=>{
+  updatePointer(e.clientX, e.clientY);
+}, false);
+window.addEventListener("touchmove", (e)=>{
+  if(e.touches && e.touches[0]){
+    updatePointer(e.touches[0].clientX, e.touches[0].clientY);
+  }
+}, { passive: true });
+
+let t = 0;
+function animate(){
+  rafId = requestAnimationFrame(animate);
+  if(!animalGroup) return;
+
+  const dx = pointer.x - pos.x;
+  const dy = pointer.y - pos.y;
+  const dist = Math.hypot(dx, dy);
+
+  const ease = 0.08;
+  pos.x += dx * ease;
+  pos.y += dy * ease;
+
+  if(Math.abs(dx) > 2){
+    facing = dx > 0 ? 1 : -1;
+  }
+
+  t += 0.15;
+  const moving = dist > 4;
+  const bob = moving ? Math.sin(t) * 4 : Math.sin(t * 0.4) * 1.2;
+  const tilt = moving ? Math.max(-10, Math.min(10, dx * 0.06)) : 0;
+  const scale = moving ? 1 + Math.min(dist, 200) / 2400 : 1;
+
+  animalGroup.setAttribute(
+    "transform",
+    `translate(${pos.x} ${pos.y + bob}) scale(${facing} 1) rotate(${tilt * facing}) scale(${scale})`
+  );
+}
+
+window.addEventListener("keydown", (e)=>{
+  if(e.key === "Escape" && trackScreen.classList.contains("active")) goBack();
+});
+</script>
+</body>
+</html>
