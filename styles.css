@@ -1,0 +1,137 @@
+:root{
+  --bg: #eef1f8;
+  --bg2: #ffffff;
+  --card: #ffffff;
+  --card-border: #e2e6f0;
+  --text: #1c2333;
+  --text-dim: #6b7280;
+  --accent: #6c5ce7;
+  --accent-soft: #efeaff;
+  --shadow: rgba(30,34,60,0.10);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg: #0b0f19;
+    --bg2: #10162a;
+    --card: #141b30;
+    --card-border: #232c48;
+    --text: #f2f4fb;
+    --text-dim: #a2a9c3;
+    --accent: #8b7bff;
+    --accent-soft: #241f45;
+    --shadow: rgba(0,0,0,0.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg: #0b0f19;
+  --bg2: #10162a;
+  --card: #141b30;
+  --card-border: #232c48;
+  --text: #f2f4fb;
+  --text-dim: #a2a9c3;
+  --accent: #8b7bff;
+  --accent-soft: #241f45;
+  --shadow: rgba(0,0,0,0.35);
+}
+
+*{ box-sizing: border-box; }
+html, body{
+  margin:0; padding:0; width:100%; height:100%;
+  overflow:hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ---------- Selection screen ---------- */
+#selectScreen{
+  position:fixed; inset:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap: 28px;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 20%, var(--bg2), var(--bg));
+}
+#selectScreen h1{
+  font-size: clamp(22px, 4vw, 32px);
+  margin: 0;
+  text-align: center;
+}
+#selectScreen p.sub{
+  margin: -18px 0 0 0;
+  color: var(--text-dim);
+  font-size: 15px;
+  text-align:center;
+}
+.grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  max-width: 760px;
+  width: 100%;
+}
+.animal-card{
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 18px 12px 14px;
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  cursor:pointer;
+  box-shadow: 0 6px 18px var(--shadow);
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.animal-card:hover{
+  transform: translateY(-4px) scale(1.03);
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px var(--shadow);
+}
+.animal-card:active{ transform: translateY(-1px) scale(0.99); }
+.animal-card svg{ width: 84px; height: 84px; }
+.animal-card span{
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ---------- Tracker screen ---------- */
+#trackScreen{
+  position:fixed; inset:0;
+  display:none;
+  background: var(--bg);
+  cursor: none;
+}
+#trackScreen.active{ display:block; }
+
+#backBtn{
+  position:fixed;
+  top: 16px; left: 16px;
+  z-index: 10;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px var(--shadow);
+}
+#backBtn:hover{ border-color: var(--accent); }
+
+#hint{
+  position:fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-dim);
+  font-size: 13px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px var(--shadow);
+  pointer-events: none;
+}
+
+svg#screen{
+  position:absolute; top:0; left:0;
+  width:100vw; height:100vh;
+  touch-action: none;
+}

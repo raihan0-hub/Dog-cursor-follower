@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pick an Animal to Follow Your Cursor</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- SELECTION PAGE -->
+  <div id="selectScreen">
+    <h1>Pick a friend to follow your cursor 🐾</h1>
+    <p class="sub">Move your mouse (or finger) around once you choose.</p>
+    <div class="grid" id="animalGrid"></div>
+  </div>
+
+  <!-- TRACKER PAGE -->
+  <div id="trackScreen">
+    <button id="backBtn">← Choose another animal</button>
+    <div id="hint">Move your cursor around the screen</div>
+    <svg id="screen" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <script src="js/script.js"></script>
+</body>
+</html>
