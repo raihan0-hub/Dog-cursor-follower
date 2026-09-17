@@ -71,4 +71,4 @@ It will automatically appear as a new card on the selection screen — no other 
 
 ## License
 
-Feel free to use, modify, and share this project. Add a license of your choice (e.g. MIT) if you plan to publish this repository publicly.
+Feel free to use, modify, and share this project.
